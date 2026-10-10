@@ -1,0 +1,191 @@
+import os, zipfile
+from pathlib import Path
+import pandas as pd
+import numpy as np
+
+base = Path("/mnt/data/student_performance_eda")
+base.mkdir(parents=True, exist_ok=True)
+rng = np.random.default_rng(42)
+n = 10000
+
+study_hours = np.clip(rng.normal(4.5, 2.0, n), 0, 12)
+attendance = np.clip(rng.normal(82, 12, n), 35, 100)
+previous_score = np.clip(rng.normal(68, 15, n), 10, 100)
+gender = rng.choice(["Female", "Male"], size=n)
+final_score = np.clip(
+    15 + 4.2 * study_hours + 0.25 * attendance + 0.35 * previous_score
+    + rng.normal(0, 9, n), 0, 100
+)
+df = pd.DataFrame({
+    "Student_ID": np.arange(1, n + 1),
+    "Gender": gender,
+    "Study_Hours_Per_Day": np.round(study_hours, 1),
+    "Attendance_Percent": np.round(attendance, 1),
+    "Previous_Score": np.round(previous_score, 1),
+    "Final_Score": np.round(final_score, 1),
+    "Extracurricular_Activities": rng.choice(["Yes", "No"], size=n, p=[0.42, 0.58]),
+})
+# Add a few missing values to demonstrate missing-value inspection
+for col in ["Attendance_Percent", "Previous_Score", "Final_Score"]:
+    idx = rng.choice(n, size=30, replace=False)
+    df.loc[idx, col] = np.nan
+
+csv_path = base / "student_performance_large.csv"
+df.to_csv(csv_path, index=False)
+
+code = r'''# STUDENT PERFORMANCE ANALYSIS — EXPLORATORY DATA ANALYSIS (EDA)
+# Dataset: 10,000 illustrative student records
+# No dashboard. This program prints summaries and creates normal graphs.
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# 1. Load dataset
+df = pd.read_csv("student_performance_large.csv")
+
+print("FIRST 5 RECORDS")
+print(df.head())
+
+print("\nDATASET SIZE")
+print("Rows and columns:", df.shape)
+
+print("\nCOLUMN INFORMATION")
+df.info()
+
+# 2. Check missing values and duplicates
+print("\nMISSING VALUES")
+print(df.isnull().sum())
+
+print("\nDUPLICATE ROWS")
+print(df.duplicated().sum())
+
+# 3. Basic statistics
+print("\nSTATISTICAL SUMMARY")
+print(df.describe())
+
+print("\nAVERAGE FINAL SCORE")
+print(round(df["Final_Score"].mean(), 2))
+
+print("\nMEDIAN FINAL SCORE")
+print(round(df["Final_Score"].median(), 2))
+
+# Remove duplicate records and fill numeric missing values with each column's median
+df = df.drop_duplicates()
+numeric_cols = df.select_dtypes(include=np.number).columns
+for col in numeric_cols:
+    df[col] = df[col].fillna(df[col].median())
+
+# Graph appearance
+sns.set_theme(style="whitegrid")
+plt.figure(figsize=(8, 5))
+
+# 4. Graph 1 — Final score distribution
+sns.histplot(df["Final_Score"], bins=20, kde=True)
+plt.title("Distribution of Final Scores")
+plt.xlabel("Final Score")
+plt.ylabel("Number of Students")
+plt.tight_layout()
+plt.savefig("01_final_score_distribution.png", dpi=300)
+plt.show()
+
+# 5. Graph 2 — Average score by gender
+plt.figure(figsize=(8, 5))
+sns.barplot(data=df, x="Gender", y="Final_Score", errorbar=None)
+plt.title("Average Final Score by Gender")
+plt.xlabel("Gender")
+plt.ylabel("Average Final Score")
+plt.tight_layout()
+plt.savefig("02_average_score_by_gender.png", dpi=300)
+plt.show()
+
+# 6. Graph 3 — Study hours vs final score
+plt.figure(figsize=(8, 5))
+sns.scatterplot(data=df, x="Study_Hours_Per_Day", y="Final_Score", alpha=0.35)
+plt.title("Study Hours vs Final Score")
+plt.xlabel("Study Hours per Day")
+plt.ylabel("Final Score")
+plt.tight_layout()
+plt.savefig("03_study_hours_vs_score.png", dpi=300)
+plt.show()
+
+# 7. Graph 4 — Attendance vs final score
+plt.figure(figsize=(8, 5))
+sns.scatterplot(data=df, x="Attendance_Percent", y="Final_Score", alpha=0.35)
+plt.title("Attendance vs Final Score")
+plt.xlabel("Attendance (%)")
+plt.ylabel("Final Score")
+plt.tight_layout()
+plt.savefig("04_attendance_vs_score.png", dpi=300)
+plt.show()
+
+# 8. Graph 5 — Correlation heatmap
+corr = df.select_dtypes(include=np.number).corr()
+print("\nCORRELATION MATRIX")
+print(corr.round(2))
+
+plt.figure(figsize=(9, 6))
+sns.heatmap(corr, annot=True, cmap="coolwarm", fmt=".2f", vmin=-1, vmax=1)
+plt.title("Correlation Heatmap")
+plt.tight_layout()
+plt.savefig("05_correlation_heatmap.png", dpi=300)
+plt.show()
+
+# 9. Graph 6 — Box plot for score spread and possible outliers
+plt.figure(figsize=(8, 4))
+sns.boxplot(x=df["Final_Score"])
+plt.title("Final Score Spread and Possible Outliers")
+plt.xlabel("Final Score")
+plt.tight_layout()
+plt.savefig("06_final_score_boxplot.png", dpi=300)
+plt.show()
+
+# 10. Key insights from this dataset
+print("\nKEY INSIGHTS")
+print("Average final score:", round(df["Final_Score"].mean(), 2))
+print("Highest final score:", round(df["Final_Score"].max(), 2))
+print("Lowest final score:", round(df["Final_Score"].min(), 2))
+print("Study hours / final score correlation:",
+      round(df["Study_Hours_Per_Day"].corr(df["Final_Score"]), 2))
+print("Attendance / final score correlation:",
+      round(df["Attendance_Percent"].corr(df["Final_Score"]), 2))
+print("Previous score / final score correlation:",
+      round(df["Previous_Score"].corr(df["Final_Score"]), 2))
+
+print("\nCONCLUSION")
+print("The graphs and statistics help explore how study hours, attendance, and")
+print("previous scores relate to final scores. Correlation indicates association,")
+print("not proof of cause and effect. This dataset is synthetic for practice.")
+'''
+py_path = base / "student_performance_eda.py"
+py_path.write_text(code, encoding="utf-8")
+
+readme = """STUDENT PERFORMANCE EDA PROJECT
+
+Files:
+1. student_performance_large.csv — 10,000 illustrative/synthetic student records.
+2. student_performance_eda.py — Python EDA code that prints statistics and creates six graphs.
+
+Required packages:
+pip install pandas numpy matplotlib seaborn
+
+How to run:
+1. Keep the CSV and Python file in the same folder.
+2. Install the packages above.
+3. Run the Python file from your IDE, or upload both files to Google Colab.
+4. The program displays six graphs and saves PNG files in the current working folder.
+
+Important:
+The dataset is synthetic, created for educational practice. Do not present it as real collected student data.
+No dashboard is included.
+"""
+(base / "README.txt").write_text(readme, encoding="utf-8")
+
+zip_path = Path("/mnt/data/student_performance_eda_submission.zip")
+with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+    for p in [csv_path, py_path, base / "README.txt"]:
+        z.write(p, arcname=p.name)
+
+print("Created project ZIP:", zip_path)
+print("CSV rows/columns:", df.shape)
